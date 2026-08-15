@@ -1,0 +1,15 @@
+[project]
+name = "calendar-mngr"
+version = "0.3.0"
+description = "Convert class schedules from text, HTML, or authenticated webpages into portable ICS calendars."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.46",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[tool.uv]
+package = false
