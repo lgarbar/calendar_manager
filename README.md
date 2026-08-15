@@ -26,7 +26,7 @@ separate Chromium browser.
 ## Clone and install
 
 ``` bash
-git clone <YOUR-REPOSITORY-URL>
+git clone <https://github.com/lgarbar/calendar_manager.git>
 cd calendar_mngr
 uv sync
 ```
