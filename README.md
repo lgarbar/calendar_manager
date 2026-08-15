@@ -1,161 +1,187 @@
 # Calendar Manager
 
-Convert a class schedule into a portable `.ics` calendar that can be imported into Apple Calendar, Google Calendar, or Microsoft Outlook.
+Calendar Manager converts a class schedule into a portable `.ics`
+calendar that can be imported into Apple Calendar, Google Calendar, or
+Microsoft Outlook.
 
-The current V3 script supports three input modes:
-
-- Plain-text schedule exports
-- Saved/rendered HTML schedule pages
-- Authenticated schedule-page URLs via Playwright
-
-It parses course codes/titles, meeting days, times, and locations; lets you review or edit the detected classes; and generates weekly recurring calendar events for the semester.
+The project supports schedule text files, saved/rendered HTML, and an
+authenticated Vanderbilt schedule URL. The desktop app provides a
+graphical interface with class selection and calendar date pickers, so
+normal use does not require the Terminal.
 
 ## Requirements
 
-- Python 3.11+
-- [uv](https://docs.astral.sh/uv/)
-- Chromium installed through Playwright for URL mode
+For development/building:
 
-## Setup
+-   macOS
+-   Python 3.11+
+-   [uv](https://docs.astral.sh/uv/)
+-   Google Chrome
+-   Git
 
-From the project root:
+Google Chrome is used by Playwright for authenticated schedule loading.
+This keeps the packaged application much smaller than bundling a
+separate Chromium browser.
 
-```bash
+## Clone and install
+
+``` bash
+git clone <YOUR-REPOSITORY-URL>
+cd calendar_mngr
 uv sync
-uv run playwright install chromium
 ```
 
-If you already have a `.venv`, `uv sync` will manage the project environment from `pyproject.toml`.
+If the repository's `pyproject.toml` does not yet contain the GUI/build
+dependencies, add them once:
 
-## Usage
-
-Assuming the script is located at `src/class_schedule_to_ics_v3.py`:
-
-### Parse a text file
-
-```bash
-uv run python src/class_schedule_to_ics_v3.py data/test_data/input/test.txt
+``` bash
+uv add playwright pyside6
+uv add --dev pyinstaller
 ```
 
-### Parse a rendered HTML file
+Because the desktop app launches the locally installed Google Chrome
+(`channel="chrome"`), a separate `playwright install chromium` step is
+not required.
 
-```bash
-uv run python src/class_schedule_to_ics_v3.py data/test_data/input/test.html
+## Run the desktop app from the repository
+
+After cloning and installing dependencies:
+
+``` bash
+uv run python -m app.gui
 ```
 
-### Parse a schedule directly from a URL
+The app opens as a normal graphical window. Paste the Vanderbilt
+schedule URL, click **Load Schedule**, choose the semester start/end
+dates with the calendar controls, select the classes to include, and
+click **Create & Open Calendar**.
 
-```bash
-uv run python src/class_schedule_to_ics_v3.py "https://student-search.app.vanderbilt.edu/..."
+The first time a Vanderbilt URL is loaded, Chrome may ask you to sign in
+and complete MFA. Calendar Manager uses a dedicated persistent Chrome
+profile so the authenticated session can be reused until Vanderbilt
+expires it. The application does not ask for or store your Vanderbilt
+password.
+
+## Existing command-line program
+
+The existing CLI remains in `src/main.py` and does not need to be
+modified for the GUI.
+
+Examples:
+
+``` bash
+uv run python src/main.py schedule.txt
+uv run python src/main.py schedule.html
 ```
 
-For authenticated pages, V3 launches Chromium and waits for the rendered schedule. On the first run, sign in normally and complete MFA if required. The Playwright browser profile can preserve the authenticated session for later runs.
+If your current `main.py` already supports URL mode, that workflow can
+remain available as well.
 
-### Headless URL mode
+## Project layout
 
-After you have authenticated successfully at least once:
-
-```bash
-uv run python src/class_schedule_to_ics_v3.py \
-  "https://student-search.app.vanderbilt.edu/..." \
-  --headless
+``` text
+calendar_mngr/
+├── README.md
+├── pyproject.toml
+├── src/
+│   ├── main.py
+│   └── app/
+│       ├── __init__.py
+│       ├── gui.py
+│       └── web_loader.py
+└── tests/
 ```
 
-If the login session has expired, rerun without `--headless` so you can authenticate interactively.
+`src/main.py` remains the tested schedule/calendar engine. App-specific
+code lives under `src/app/`.
 
-### Fully specified run
+## Package the macOS app yourself
 
-```bash
-uv run python src/class_schedule_to_ics_v3.py \
-  "https://student-search.app.vanderbilt.edu/..." \
-  --start 2026-08-26 \
-  --end 2026-12-11 \
-  --timezone America/Chicago \
-  --yes \
-  --headless \
-  --open
+The compiled `.app` should generally **not** be committed to GitHub.
+Commit the source code, `pyproject.toml`, lockfile, README, and build
+configuration instead. Users/developers can build the application
+locally.
+
+Install/sync dependencies:
+
+``` bash
+uv sync
 ```
 
-## Output
+Then build:
 
-By default, configure the script to use:
-
-```python
-default=Path.home() / "Desktop" / "class_schedule.ics"
+``` bash
+uv run pyinstaller \
+  --noconfirm \
+  --windowed \
+  --name "Calendar Manager" \
+  --paths src \
+  --collect-all PySide6 \
+  --collect-all playwright \
+  src/app/gui.py
 ```
 
-This saves the generated calendar to the current user's Desktop.
+PyInstaller writes the application to:
 
-You can override the destination with `-o` or `--output`:
-
-```bash
-uv run python src/class_schedule_to_ics_v3.py schedule.html \
-  -o ~/Desktop/fall_2026_classes.ics
+``` text
+dist/Calendar Manager.app
 ```
 
-If accepting `~` in user-supplied output paths, the argument definition should use:
+Open it with:
 
-```python
-type=lambda p: Path(p).expanduser()
+``` bash
+open "dist/Calendar Manager.app"
 ```
 
-## Calendar behavior
+Or drag `Calendar Manager.app` into `/Applications`.
 
-The generated `.ics` file:
+### Rebuilding
 
-- Creates one recurring event per schedulable class
-- Uses weekly recurrence rules based on `M`, `T`, `W`, `R`, and `F`
-- Interprets `R` as Thursday
-- Starts each course on its first valid meeting day on or after the semester start date
-- Optionally stops recurrence at the semester end date
-- Can use an indefinite recurrence if no end date is supplied
-- Includes course code, course title, meeting time, and location
-- Skips TBA meetings unless they are manually edited into schedulable events
+Remove old build products when necessary:
 
-For example, if the semester starts on Wednesday and a course meets `MW`, its first event is Wednesday and its next occurrence is the following Monday.
+``` bash
+rm -rf build dist
+```
 
-## Authentication and privacy
+Then run the PyInstaller command again.
 
-URL mode uses Playwright to load the schedule in a real Chromium browser. The script does not need your university password or MFA secret. Authentication remains in the browser session.
+## GitHub
 
-The persistent browser profile should be treated as sensitive because it can contain authenticated cookies. Do not commit it to Git or share it.
+Do not commit generated application/build directories. Add at least the
+following to `.gitignore`:
 
-Recommended `.gitignore` entries include:
-
-```gitignore
+``` gitignore
 .venv/
+build/
+dist/
+*.spec
 __pycache__/
-*.pyc
-*.ics
-.class-schedule-converter/
 .DS_Store
 ```
 
-If the Playwright profile is stored under your home directory (for example `~/.class-schedule-converter/chromium-profile`), it is already outside the repository.
+`uv.lock` should normally be committed so other users reproduce the
+dependency versions used by the project.
 
-## Project structure
+## Authentication and privacy
 
-A simple layout is:
+Calendar Manager does not implement Vanderbilt authentication itself.
+Playwright opens Google Chrome, Vanderbilt handles login/MFA normally,
+and the app reads the rendered schedule after it appears.
 
-```text
-calendar_mngr/
-├── pyproject.toml
-├── README.md
-├── src/
-│   └── class_schedule_to_ics_v3.py
-└── data/
-    └── test_data/
-        ├── input/
-        └── output/
+The persistent browser profile is stored locally under:
+
+``` text
+~/Library/Application Support/CalendarManager/chrome-profile
 ```
 
-## Current limitations
+Do not commit that directory or copy it into the repository.
 
-- The Vanderbilt HTML parser depends on the current schedule DOM structure/classes. If Vanderbilt redesigns the page, its selectors may need updating.
-- URL mode requires Playwright and its Chromium installation.
-- Authentication may periodically expire and require an interactive login/MFA session.
-- TBA courses cannot be placed on a calendar until meeting days/times are known.
+## Calendar behavior
 
-## Development direction
+Scheduled classes become weekly recurring events. `M`, `T`, `W`, `R`,
+and `F` represent Monday through Friday, with `R` representing Thursday.
+TBA meetings are displayed but excluded from calendar generation by
+default.
 
-The current architecture deliberately separates schedule extraction from calendar generation. Future versions can add browser extensions, other university schedule formats, direct calendar APIs, or additional parsers without replacing the `.ics` generation logic.
+The generated `.ics` file is compatible with Apple Calendar, Google
+Calendar, and Microsoft Outlook.
