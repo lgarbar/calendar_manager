@@ -48,7 +48,7 @@ not required.
 After cloning and installing dependencies:
 
 ``` bash
-uv run python -m app.gui
+PYTHONPATH=src uv run python -m app.gui
 ```
 
 The app opens as a normal graphical window. Paste the Vanderbilt
